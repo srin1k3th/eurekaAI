@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getExamConfig, DEFAULT_EXAM_KEY } from "@/lib/examConfig";
-import { checkRateLimit } from "@/lib/rateLimit";
+import { checkRateLimit, getUserTier } from "@/lib/rateLimit";
 
 const SYSTEM_PROMPT = `You are an expert evaluator assessing a student's depth of understanding of a concept, as if for a competitive entrance exam (JEE Advanced, JEE Mains, BITSAT, or NEET).
 
@@ -45,11 +45,18 @@ export async function POST(req) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return Response.json({ error: "Sign in to use Feynman mode." }, { status: 401 });
 
-    // ── Rate limit: 10 evaluations per day ────────────────────
+    // ── Rate limit: tier-specific daily cap ────────────────────
     const rl = await checkRateLimit(supabase, user.id, "feynman");
     if (!rl.allowed) {
+      const limitDisplay = rl.limit === Infinity ? "unlimited" : rl.limit;
       return Response.json(
-        { error: `Daily limit reached (${rl.used}/${rl.limit} Feynman evaluations). Come back tomorrow!` },
+        {
+          error: `Daily limit reached (${rl.used}/${limitDisplay} Feynman evaluations). ${rl.tier === "pro" ? "" : "Upgrade for more →"}`,
+          tier: rl.tier,
+          upgradeNeeded: rl.tier !== "pro",
+          used: rl.used,
+          limit: rl.limit,
+        },
         { status: 429 }
       );
     }

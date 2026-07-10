@@ -9,8 +9,12 @@ import Btn from "@/components/ui/Btn";
 import Card from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import Md from "@/components/ui/Md";
+import UsageMeter from "@/components/ui/UsageMeter";
+import ProBadge from "@/components/ui/ProBadge";
+import UpgradeModal from "@/components/ui/UpgradeModal";
 import { createClient } from "@/lib/supabase/client";
 import { getExamConfig, DEFAULT_EXAM_KEY } from "@/lib/examConfig";
+import { getTierConfig } from "@/lib/tierConfig";
 
 const BASE_FILTERS = ["all", "unresolved", "resolved"];
 
@@ -128,15 +132,26 @@ export default function MistakeJournalPage() {
   const [showModal, setShowModal] = useState(false);
   const [examSubjects, setExamSubjects] = useState(["Physics", "Chemistry", "Maths"]);
 
+  // Tier state
+  const [userTier, setUserTier] = useState("free");
+  const [mistakesLimit, setMistakesLimit] = useState(10);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
   useEffect(() => {
     fetchMistakes();
-    // Fetch exam subjects from Supabase profile
+    // Fetch exam subjects & tier from Supabase profile
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
-        const { data: profile } = await supabase.from("profiles").select("exam").eq("id", user.id).single();
+        const { data: profile } = await supabase.from("profiles").select("exam, tier, is_launch_phase").eq("id", user.id).single();
         const cfg = getExamConfig(profile?.exam ?? DEFAULT_EXAM_KEY);
         setExamSubjects([...cfg.subjects, "Other"]);
+        
+        const tier = profile?.tier || "free";
+        const isLaunchPhase = profile?.is_launch_phase ?? true;
+        setUserTier(tier);
+        const tierCfg = getTierConfig(tier, isLaunchPhase);
+        setMistakesLimit(tierCfg.maxMistakeEntries);
       }
     });
   }, []);
@@ -154,7 +169,17 @@ export default function MistakeJournalPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
     });
-    if (!res.ok) return { error: "Failed to save. Try again." };
+    if (!res.ok) {
+      try {
+        const errData = await res.json();
+        if (errData.upgradeNeeded) {
+          setShowModal(false);
+          setShowUpgradeModal(true);
+          return { error: "Storage limit reached." };
+        }
+      } catch {}
+      return { error: "Failed to save. Try again." };
+    }
     setShowModal(false);
     fetchMistakes();
   }
@@ -205,13 +230,25 @@ export default function MistakeJournalPage() {
             <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, marginBottom: 4 }}>Mistake Journal</h1>
             <p style={{ color: MUTED, fontSize: 14 }}>Every struggle, logged and diagnosed. Your fastest path to improvement.</p>
           </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <UsageMeter
+              used={total}
+              limit={mistakesLimit}
+              label="entries"
+              tier={userTier}
+              compact
+              onUpgradeClick={() => setShowUpgradeModal(true)}
+            />
+            <ProBadge tier={userTier} />
             {unresolved > 0 && (
               <div style={{ background: "#f8717118", border: "1px solid #f8717130", borderRadius: 10, padding: "8px 16px", fontSize: 13, color: "#f87171", fontWeight: 600 }}>
                 {unresolved} unresolved
               </div>
             )}
-            <Btn small onClick={() => setShowModal(true)}>+ Log Mistake</Btn>
+            <Btn small onClick={() => {
+              if (total >= mistakesLimit) setShowUpgradeModal(true);
+              else setShowModal(true);
+            }}>+ Log Mistake</Btn>
           </div>
         </div>
 
@@ -332,6 +369,14 @@ export default function MistakeJournalPage() {
           </div>
         )}
       </div>
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && (
+        <UpgradeModal
+          feature="mistakes"
+          onClose={() => setShowUpgradeModal(false)}
+        />
+      )}
     </div>
   );
 }

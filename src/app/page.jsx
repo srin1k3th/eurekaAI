@@ -265,7 +265,9 @@ const faqs = [
   { q: "Is this just another AI solver?", a: "No, EurekaAI isn't built to just give you answers. Our Socratic Solver acts as a world-class tutor, asking guided questions to help you reach the solution yourself." },
   { q: "What topics does it cover?", a: "EurekaAI is completely subject-agnostic. Whether you're studying University Physics, AP Chemistry, or high school History, the AI dynamically adapts its focus to your material." },
   { q: "How is this different from standard AI?", a: "While general AI often blurts out the answer, EurekaAI is designed exclusively for active learning. Through Focus Mode and Feynman Explainer, it ensures you actually retain the knowledge." },
-  { q: "Is it free?", a: "Yes! You can start using our core tools completely for free. We also offer premium features for advanced progress tracking and limitless AI interactions." },
+  { q: "Is it free?", a: "Yes! The Explorer (free) tier gives you access to all core tools with daily limits. Plus (₹99/mo) and Pro (₹149/mo) unlock higher limits, image uploads, and advanced analytics. We also offer annual plans that save up to 44%." },
+  { q: "What's the difference between Plus and Pro?", a: "Plus gives you 5 solver sessions/day and image uploads. Pro gives you everything unlimited — unlimited sessions, analytics, full history, and priority AI. For just ₹50/mo more, Pro is the obvious choice." },
+  { q: "Is there a founding member deal?", a: "Yes! The first 500 users can lock in Pro at ₹99/mo forever, or get lifetime Pro access for a one-time ₹999. These spots are limited and won't come back." },
 ];
 
 const steps = [
@@ -279,6 +281,7 @@ export default function LandingPage() {
   const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
+  const [annualPricing, setAnnualPricing] = useState(true);
   const heroBlobRef = useRef(null);
 
   useScrollReveal();
@@ -403,7 +406,7 @@ export default function LandingPage() {
           </div>
 
           <div className="nav-links" style={{ display: "flex", gap: 28, alignItems: "center" }}>
-            {[["#features", "Features"], ["#how-it-works", "How it works"], ["#faq", "FAQ"]].map(([href, label]) => (
+            {[["#features", "Features"], ["#how-it-works", "How it works"], ["#pricing", "Pricing"], ["#faq", "FAQ"]].map(([href, label]) => (
               <a key={href} href={href} className="nl" style={{ fontSize: 13, fontWeight: 500, color: T.muted, fontFamily: INTER }}>{label}</a>
             ))}
           </div>
@@ -642,6 +645,198 @@ export default function LandingPage() {
                 <p style={{ fontSize: 14.5, color: T.muted, lineHeight: 1.75, fontFamily: INTER }}>{s.body}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PRICING ────────────────────────────────────────────────────────── */}
+      <section id="pricing" className="section-std" style={{ background: T.bg2, padding: "88px 36px" }}>
+        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+          <div className="reveal" style={{ textAlign: "center", marginBottom: 48 }}>
+            <p style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.muted, marginBottom: 10, fontFamily: INTER }}>Pricing</p>
+            <h2 style={{ fontFamily: INTER, fontSize: "clamp(26px, 3.2vw, 42px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.1, color: T.text, marginBottom: 14 }}>
+              Less than a pizza. More than any tutor.
+            </h2>
+            <p style={{ fontSize: 15, color: T.muted, lineHeight: 1.7, maxWidth: 480, margin: "0 auto", fontFamily: INTER }}>
+              Start free. Upgrade when you're hooked.
+            </p>
+          </div>
+
+          {/* Annual / Monthly toggle */}
+          <div className="reveal reveal-d1" style={{ display: "flex", justifyContent: "center", marginBottom: 40 }}>
+            <div style={{ display: "flex", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: 4, gap: 2 }}>
+              {[["Monthly", false], ["Annual", true]].map(([label, isAnnual]) => (
+                <button key={label} onClick={() => setAnnualPricing(isAnnual)}
+                  style={{
+                    padding: "8px 22px", borderRadius: 9, border: "none",
+                    fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: INTER,
+                    background: annualPricing === isAnnual ? T.accent : "transparent",
+                    color: annualPricing === isAnnual ? "#fff" : T.muted,
+                    transition: "all .18s",
+                  }}
+                >
+                  {label} {isAnnual && <span style={{ fontSize: 11, opacity: 0.85 }}>· Save 44%</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Three tier cards */}
+          <div className="reveal reveal-d2" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, alignItems: "stretch" }}>
+
+            {/* FREE TIER */}
+            <div style={{
+              background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20,
+              padding: "32px 28px", display: "flex", flexDirection: "column",
+              transition: "transform .2s, box-shadow .2s",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(0,0,0,0.08)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = ""; }}
+            >
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: T.muted, marginBottom: 16, fontFamily: INTER }}>Explorer</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 6 }}>
+                <span style={{ fontSize: 42, fontWeight: 900, color: T.text, fontFamily: INTER }}>Free</span>
+              </div>
+              <p style={{ fontSize: 13, color: T.muted, lineHeight: 1.6, marginBottom: 24, fontFamily: INTER }}>Get started and feel the Socratic method in action.</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+                {["1 solver session/day", "2 Feynman evaluations/day", "Full Focus Mode (non-AI)", "AI quiz every 6 hours", "10 mistake journal entries", "8 AI turns per session"].map(f => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: T.muted, fontFamily: INTER }}>
+                    <span style={{ color: T.accent, fontWeight: 700 }}>✓</span> {f}
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => router.push("/login")} style={{
+                marginTop: 24, width: "100%", padding: "12px 0", borderRadius: 10,
+                border: `1px solid ${T.border}`, background: "transparent",
+                color: T.text, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: INTER,
+                transition: "all .18s",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = T.bg2}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                Start for free
+              </button>
+            </div>
+
+            {/* PLUS TIER (The Decoy) */}
+            <div style={{
+              background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20,
+              padding: "32px 28px", display: "flex", flexDirection: "column",
+              transition: "transform .2s, box-shadow .2s",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(0,0,0,0.08)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = ""; }}
+            >
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#818cf8", marginBottom: 16, fontFamily: INTER }}>Plus</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 6 }}>
+                <span style={{ fontSize: 42, fontWeight: 900, color: T.text, fontFamily: INTER }}>₹{annualPricing ? Math.round(799/12) : 99}</span>
+                <span style={{ fontSize: 14, color: T.muted, fontFamily: INTER }}>/mo</span>
+              </div>
+              {annualPricing && <p style={{ fontSize: 12, color: "#818cf8", fontWeight: 600, margin: "0 0 6px", fontFamily: INTER }}>₹799/year billed annually</p>}
+              <p style={{ fontSize: 13, color: T.muted, lineHeight: 1.6, marginBottom: 24, fontFamily: INTER }}>More sessions, image uploads, and reduced cooldowns.</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+                {["5 solver sessions/day", "5 Feynman evaluations/day", "Image & PDF uploads", "AI quiz every 2 hours", "50 mistake entries", "15 AI turns per session", "15s cooldown"].map(f => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: T.muted, fontFamily: INTER }}>
+                    <span style={{ color: "#818cf8", fontWeight: 700 }}>✓</span> {f}
+                  </div>
+                ))}
+                {["Full analytics", "Unlimited history"].map(f => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: `${T.muted}60`, fontFamily: INTER }}>
+                    <span style={{ color: `${T.muted}40`, fontWeight: 700 }}>✗</span> {f}
+                  </div>
+                ))}
+              </div>
+              <button style={{
+                marginTop: 24, width: "100%", padding: "12px 0", borderRadius: 10,
+                border: `1px solid ${T.border}`, background: "transparent",
+                color: T.text, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: INTER,
+                transition: "all .18s",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = T.bg2}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                Get Plus
+              </button>
+            </div>
+
+            {/* PRO TIER (The Winner) */}
+            <div style={{
+              background: T.surface,
+              border: `2px solid ${T.accent}`,
+              borderRadius: 20,
+              padding: "32px 28px", display: "flex", flexDirection: "column",
+              position: "relative",
+              boxShadow: `0 0 40px ${T.accent}15, 0 8px 32px rgba(0,0,0,0.06)`,
+              transition: "transform .2s, box-shadow .2s",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.boxShadow = `0 0 60px ${T.accent}20, 0 16px 48px rgba(0,0,0,0.1)`; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `0 0 40px ${T.accent}15, 0 8px 32px rgba(0,0,0,0.06)`; }}
+            >
+              {/* Most Popular badge */}
+              <div style={{
+                position: "absolute", top: -1, left: "50%", transform: "translateX(-50%)",
+                background: T.accent, color: "#fff",
+                fontSize: 10, fontWeight: 800, padding: "4px 16px",
+                borderRadius: "0 0 10px 10px", letterSpacing: "0.08em", textTransform: "uppercase",
+                fontFamily: INTER,
+              }}>
+                Most Popular
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: T.accent, marginBottom: 16, fontFamily: INTER }}>Pro</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 6 }}>
+                <span style={{ fontSize: 42, fontWeight: 900, color: T.text, fontFamily: INTER }}>₹{annualPricing ? Math.round(999/12) : 149}</span>
+                <span style={{ fontSize: 14, color: T.muted, fontFamily: INTER }}>/mo</span>
+              </div>
+              {annualPricing && <p style={{ fontSize: 12, color: T.accent, fontWeight: 600, margin: "0 0 6px", fontFamily: INTER }}>₹999/year billed annually</p>}
+              <p style={{ fontSize: 13, color: T.accent, fontWeight: 600, marginBottom: 8, fontFamily: INTER }}>
+                Only ₹{(annualPricing ? Math.round(999/12) : 149) - (annualPricing ? Math.round(799/12) : 99)}/mo more than Plus
+              </p>
+              <p style={{ fontSize: 13, color: T.muted, lineHeight: 1.6, marginBottom: 24, fontFamily: INTER }}>Everything. Unlimited. No restrictions.</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+                {["Unlimited solver sessions", "Unlimited Feynman evaluations", "Unlimited AI quiz generation", "Unlimited AI turns", "Unlimited mistake entries", "Image & PDF uploads", "Full analytics & weak areas", "Complete session history", "No cooldowns", "Priority AI responses"].map(f => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: T.text, fontWeight: 500, fontFamily: INTER }}>
+                    <span style={{ color: T.accent, fontWeight: 700 }}>✓</span> {f}
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => router.push("/login")} className="cta" style={{
+                marginTop: 24, width: "100%", padding: "13px 0", borderRadius: 10,
+                border: "none", background: T.accent,
+                color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: INTER,
+              }}>
+                Get Pro →
+              </button>
+            </div>
+          </div>
+
+          {/* Founding Member Banner */}
+          <div className="reveal reveal-d3" style={{
+            marginTop: 36, padding: "24px 32px",
+            background: T.surface, border: `1px solid ${T.border}`,
+            borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 20, flexWrap: "wrap",
+          }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 18 }}>⭐</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: T.text, fontFamily: INTER }}>Founding Member</span>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, background: "#fbbf2418", color: "#b45309",
+                  border: "1px solid #fbbf2440", borderRadius: 5, padding: "2px 8px",
+                  fontFamily: INTER, letterSpacing: "0.06em", textTransform: "uppercase",
+                }}>Limited</span>
+              </div>
+              <p style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.6, maxWidth: 500, fontFamily: INTER }}>
+                First 500 users get Pro at <strong style={{ color: T.text }}>₹99/mo forever</strong>, or <strong style={{ color: T.text }}>₹999 lifetime access</strong>. These spots won't come back.
+              </p>
+            </div>
+            <button onClick={() => router.push("/login")} className="cta" style={{
+              fontSize: 13, fontWeight: 700, color: "#fff", background: T.accent,
+              border: "none", borderRadius: 10, padding: "11px 24px",
+              cursor: "pointer", fontFamily: INTER, whiteSpace: "nowrap",
+            }}>
+              Claim your spot →
+            </button>
           </div>
         </div>
       </section>

@@ -7,6 +7,10 @@ import Btn from "@/components/ui/Btn";
 import Card from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import Md from "@/components/ui/Md";
+import UsageMeter from "@/components/ui/UsageMeter";
+import ProBadge from "@/components/ui/ProBadge";
+import UpgradeModal from "@/components/ui/UpgradeModal";
+import CooldownTimer from "@/components/ui/CooldownTimer";
 import { createClient } from "@/lib/supabase/client";
 import { EXAM_CONFIG, DEFAULT_EXAM_KEY } from "@/lib/examConfig";
 
@@ -51,16 +55,26 @@ function SolverInner() {
 
   const [showMobileStats, setShowMobileStats] = useState(false);
 
+  // Tier state
+  const [userTier, setUserTier] = useState("free");
+  const [solverUsed, setSolverUsed] = useState(0);
+  const [solverLimit, setSolverLimit] = useState(3);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState("solver");
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [isCoolingDown, setIsCoolingDown] = useState(false);
+
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
       setUserId(user.id);
-      const { data: profile } = await supabase.from("profiles").select("exam").eq("id", user.id).single();
+      const { data: profile } = await supabase.from("profiles").select("exam, tier, is_launch_phase").eq("id", user.id).single();
       if (profile?.exam && EXAM_CONFIG[profile.exam]) {
         setExamLabel(EXAM_CONFIG[profile.exam].label);
       }
+      setUserTier(profile?.tier || "free");
     });
   }, []);
 
@@ -123,7 +137,27 @@ function SolverInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: apiMessages }),
       });
-      if (!res.ok) throw new Error("API error");
+      if (!res.ok) {
+        // Handle tier-specific errors
+        try {
+          const errData = await res.json();
+          if (errData.upgradeNeeded) {
+            setUpgradeFeature(errData.feature || errData.turnLimit ? "turnLimit" : "solver");
+            if (errData.used !== undefined) setSolverUsed(errData.used);
+            if (errData.limit !== undefined) setSolverLimit(errData.limit);
+            setShowUpgradeModal(true);
+            setLoading(false);
+            return;
+          }
+          if (errData.cooldown) {
+            setCooldownSeconds(errData.waitSeconds);
+            setIsCoolingDown(true);
+            setLoading(false);
+            return;
+          }
+        } catch {}
+        throw new Error("API error");
+      }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let aiText = "";
@@ -179,7 +213,27 @@ function SolverInner() {
         body: JSON.stringify({ messages: apiMessages }),
       });
 
-      if (!res.ok) throw new Error("API error");
+      if (!res.ok) {
+        // Handle tier-specific errors
+        try {
+          const errData = await res.json();
+          if (errData.upgradeNeeded) {
+            setUpgradeFeature(errData.feature || errData.turnLimit ? "turnLimit" : "solver");
+            if (errData.used !== undefined) setSolverUsed(errData.used);
+            if (errData.limit !== undefined) setSolverLimit(errData.limit);
+            setShowUpgradeModal(true);
+            setLoading(false);
+            return;
+          }
+          if (errData.cooldown) {
+            setCooldownSeconds(errData.waitSeconds);
+            setIsCoolingDown(true);
+            setLoading(false);
+            return;
+          }
+        } catch {}
+        throw new Error("API error");
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -256,13 +310,17 @@ function SolverInner() {
           <div style={{ fontWeight: 700, fontSize: 14.5, fontFamily: "var(--font-syne, inherit)" }}>Socratic Solver</div>
           <div style={{ fontSize: 11, color: MUTED, fontStyle: "italic", fontFamily: "var(--font-playfair, inherit)" }}>Guided hints. No free answers.</div>
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-          <div className="mobile-stats-btn" style={{ display: "none", cursor: "pointer", background: "rgba(255,255,255,0.08)", padding: "6px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600 }}
-               onClick={() => setShowMobileStats(s => !s)}>
-            {showMobileStats ? "Close Stats" : "Stats"}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+            <UsageMeter
+              used={solverUsed}
+              limit={solverLimit}
+              label="sessions"
+              tier={userTier}
+              compact
+              onUpgradeClick={() => { setUpgradeFeature("solver"); setShowUpgradeModal(true); }}
+            />
+            <ProBadge tier={userTier} />
           </div>
-          <Badge context="dashboard">{hintsGiven} / 5 Hints Used</Badge>
-        </div>
       </div>
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative", zIndex: 1 }}>
@@ -362,14 +420,25 @@ function SolverInner() {
                     lineHeight: 1.6, maxHeight: "6em", overflowY: "auto",
                   }}
                 />
-                {/* Optional image attach */}
-                <div
-                  onClick={() => !loading && fileInputRef.current?.click()}
-                  title="Attach image (optional)"
-                  style={{ cursor: loading ? "default" : "pointer", opacity: 0.4, transition: "opacity .15s", display: "flex" }}
-                  onMouseEnter={e => e.currentTarget.style.opacity = 0.8}
-                  onMouseLeave={e => e.currentTarget.style.opacity = 0.4}
-                ><Icon name="image" color={TEXT} size={18} /></div>
+                {/* Optional image attach — gated for free users */}
+                {userTier === "free" ? (
+                  <div
+                    onClick={() => { setUpgradeFeature("imageUpload"); setShowUpgradeModal(true); }}
+                    title="Image uploads require Plus or Pro"
+                    style={{ cursor: "pointer", opacity: 0.3, display: "flex", alignItems: "center", gap: 4, position: "relative" }}
+                  >
+                    <Icon name="image" color={TEXT} size={18} />
+                    <ProBadge tier="plus" size="sm" />
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => !loading && fileInputRef.current?.click()}
+                    title="Attach image (optional)"
+                    style={{ cursor: loading ? "default" : "pointer", opacity: 0.4, transition: "opacity .15s", display: "flex" }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = 0.8}
+                    onMouseLeave={e => e.currentTarget.style.opacity = 0.4}
+                  ><Icon name="image" color={TEXT} size={18} /></div>
+                )}
               </div>
               <Btn onClick={send} disabled={loading} style={{ padding: "14px 20px" }}>
                 {loading ? "..." : "➤"}
@@ -402,6 +471,25 @@ function SolverInner() {
           </Card>
         </div>
       </div>
+
+      {/* Cooldown timer */}
+      {isCoolingDown && cooldownSeconds > 0 && (
+        <div style={{ position: "fixed", bottom: 100, left: "50%", transform: "translateX(-50%)", zIndex: 100 }}>
+          <CooldownTimer
+            seconds={cooldownSeconds}
+            tier={userTier}
+            onComplete={() => { setIsCoolingDown(false); setCooldownSeconds(0); }}
+          />
+        </div>
+      )}
+
+      {/* Upgrade modal */}
+      {showUpgradeModal && (
+        <UpgradeModal
+          feature={upgradeFeature}
+          onClose={() => setShowUpgradeModal(false)}
+        />
+      )}
     </div>
   );
 }

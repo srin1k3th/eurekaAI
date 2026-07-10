@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase-server";
+import { checkStorageCap } from "@/lib/rateLimit";
 
 const GROQ_DIAGNOSIS_PROMPT = `You are a JEE tutor. In exactly 1-2 sentences: identify the specific conceptual or procedural error the student made and state the correct understanding. Be blunt and precise — no preamble, no encouragement, no markdown. Return only the diagnosis.`;
 
@@ -26,6 +27,21 @@ export async function POST(req) {
     const { topic, subject, problem, user_note, imageBase64 = null } = await req.json();
     if (!topic || !subject || (!problem && !imageBase64)) {
         return Response.json({ error: "topic, subject, and either problem or an image are required" }, { status: 400 });
+    }
+
+    // ── Storage cap check ──────────────────────────────────────
+    const cap = await checkStorageCap(supabase, user.id, "mistakes");
+    if (!cap.allowed) {
+        return Response.json(
+            {
+                error: `Mistake journal is full (${cap.used}/${cap.cap} entries). Upgrade to log unlimited mistakes →`,
+                tier: cap.tier,
+                upgradeNeeded: cap.tier !== "pro",
+                used: cap.used,
+                cap: cap.cap,
+            },
+            { status: 403 }
+        );
     }
 
     // Generate AI diagnosis via Groq (vision-capable if image provided)

@@ -12,6 +12,10 @@ import { EXAM_CONFIG, DEFAULT_EXAM_KEY } from "@/lib/examConfig";
 import { Suspense } from "react";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import PdfMiniViewer from "@/components/ui/PdfMiniViewer";
+import UsageMeter from "@/components/ui/UsageMeter";
+import ProBadge from "@/components/ui/ProBadge";
+import UpgradeModal from "@/components/ui/UpgradeModal";
+import { getTierConfig } from "@/lib/tierConfig";
 
 export default function FeynmanPage() {
   return (
@@ -198,6 +202,13 @@ function FeynmanInner() {
   const [userId, setUserId] = useState(null);
   const [examLabel, setExamLabel] = useState(EXAM_CONFIG[DEFAULT_EXAM_KEY].label);
 
+  // Tier state
+  const [userTier, setUserTier] = useState("free");
+  const [evalsUsed, setEvalsUsed] = useState(0);
+  const [evalsLimit, setEvalsLimit] = useState(2);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState("feynman");
+
   // Source material
   const [pdfFile, setPdfFile] = useState(null);
   const [pdfTotalPages, setPdfTotalPages] = useState(null);
@@ -227,8 +238,19 @@ function FeynmanInner() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
       setUserId(user.id);
-      const { data: profile } = await supabase.from("profiles").select("exam").eq("id", user.id).single();
+      const { data: profile } = await supabase.from("profiles").select("exam, tier, is_launch_phase").eq("id", user.id).single();
       if (profile?.exam && EXAM_CONFIG[profile.exam]) setExamLabel(EXAM_CONFIG[profile.exam].label);
+      
+      const tier = profile?.tier || "free";
+      const isLaunchPhase = profile?.is_launch_phase ?? true;
+      setUserTier(tier);
+      const tierCfg = getTierConfig(tier, isLaunchPhase);
+      setEvalsLimit(tierCfg.feynmanEvalsPerDay);
+
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const { count } = await supabase.from("feynman_attempts").select("*", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", startOfDay.toISOString());
+      setEvalsUsed(count || 0);
     });
   }, []);
 
@@ -295,7 +317,20 @@ function FeynmanInner() {
           imageBase64: imageBase64 || null,
         }),
       });
-      if (!res.ok) throw new Error("API error");
+      if (!res.ok) {
+        try {
+          const errData = await res.json();
+          if (errData.upgradeNeeded) {
+            setUpgradeFeature("feynman");
+            if (errData.used !== undefined) setEvalsUsed(errData.used);
+            if (errData.limit !== undefined) setEvalsLimit(errData.limit);
+            setShowUpgradeModal(true);
+            setLoading(false);
+            return;
+          }
+        } catch {}
+        throw new Error("API error");
+      }
       const data = await res.json();
       setFeedback(data);
       setStage("feedback");
@@ -355,7 +390,18 @@ function FeynmanInner() {
           <div style={{ fontWeight: 700, fontSize: 14.5, fontFamily: "var(--font-syne, inherit)", color: TEXT }}>Feynman Explainer</div>
           <div style={{ fontSize: 11, color: MUTED, fontStyle: "italic", fontFamily: "var(--font-playfair, inherit)" }}>Explain it. We'll find the gaps.</div>
         </div>
-        <div style={{ marginLeft: "auto" }}><Badge context="test">{examLabel}</Badge></div>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <UsageMeter
+            used={evalsUsed}
+            limit={evalsLimit}
+            label="evaluations"
+            tier={userTier}
+            compact
+            onUpgradeClick={() => { setUpgradeFeature("feynman"); setShowUpgradeModal(true); }}
+          />
+          <ProBadge tier={userTier} />
+          <Badge context="test">{examLabel}</Badge>
+        </div>
       </div>
 
       <div className="feynman-content" style={{ maxWidth: 820, margin: "0 auto", padding: "48px 28px", position: "relative", zIndex: 1 }}>
@@ -602,6 +648,14 @@ function FeynmanInner() {
           </>
         )}
       </div>
+
+      {/* Upgrade modal */}
+      {showUpgradeModal && (
+        <UpgradeModal
+          feature={upgradeFeature}
+          onClose={() => setShowUpgradeModal(false)}
+        />
+      )}
     </div>
   );
 }

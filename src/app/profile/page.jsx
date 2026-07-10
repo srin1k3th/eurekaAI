@@ -6,6 +6,8 @@ import { BG, CARD, CARD2, BORDER, TEAL, TEAL_DIM, TEXT, MUTED } from "@/lib/them
 import { EXAM_CONFIG, DEFAULT_EXAM_KEY } from "@/lib/examConfig";
 import Sidebar from "@/components/layout/Sidebar";
 import Icon from "@/components/ui/Icon";
+import ProBadge from "@/components/ui/ProBadge";
+import UpgradeModal from "@/components/ui/UpgradeModal";
 
 // Distinct accent color per exam to make each card feel unique
 const EXAM_ACCENTS = {
@@ -33,6 +35,9 @@ export default function ProfilePage() {
 
     const [fullName, setFullName] = useState("");
     const [selectedExam, setSelectedExam] = useState(DEFAULT_EXAM_KEY);
+    const [tier, setTier] = useState("free");
+    const [isFounding, setIsFounding] = useState(false);
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
     useEffect(() => {
         async function load() {
@@ -43,13 +48,15 @@ export default function ProfilePage() {
 
             const { data: profile } = await supabase
                 .from("profiles")
-                .select("exam")
+                .select("exam, tier, is_founding_member")
                 .eq("id", user.id)
                 .single();
 
             if (profile?.exam && EXAM_CONFIG[profile.exam]) {
                 setSelectedExam(profile.exam);
             }
+            setTier(profile?.tier || "free");
+            setIsFounding(profile?.is_founding_member || false);
             setLoading(false);
         }
         load();
@@ -98,6 +105,37 @@ export default function ProfilePage() {
                                 </p>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Current Plan */}
+                    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: "24px 28px", marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
+                        <div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Current Plan</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                <span style={{ fontSize: 24, fontWeight: 800, textTransform: "capitalize", color: TEXT }}>
+                                    {tier === "free" ? "Explorer (Free)" : tier}
+                                </span>
+                                <ProBadge tier={isFounding ? "founding" : tier} size="md" />
+                            </div>
+                            {tier === "free" && (
+                                <p style={{ margin: "6px 0 0", fontSize: 13, color: MUTED }}>
+                                    You are subject to daily limits on sessions and AI features.
+                                </p>
+                            )}
+                        </div>
+                        {tier !== "pro" && (
+                            <button
+                                onClick={() => setShowUpgradeModal(true)}
+                                style={{
+                                    padding: "11px 24px", borderRadius: 10, border: "none",
+                                    background: `linear-gradient(135deg, ${TEAL}, ${TEAL_DIM})`,
+                                    color: "#000", fontWeight: 800, fontSize: 14, cursor: "pointer",
+                                    boxShadow: `0 4px 16px ${TEAL}40`, transition: "all 0.2s"
+                                }}
+                            >
+                                Upgrade Plan
+                            </button>
+                        )}
                     </div>
 
                     {/* Personal Info */}
@@ -275,6 +313,14 @@ export default function ProfilePage() {
                 </div>
 
             </div>
+
+            {/* Upgrade Modal */}
+            {showUpgradeModal && (
+                <UpgradeModal
+                    feature="default"
+                    onClose={() => setShowUpgradeModal(false)}
+                />
+            )}
         </div>
     );
 }

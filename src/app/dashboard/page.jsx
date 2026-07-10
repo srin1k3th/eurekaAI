@@ -9,6 +9,9 @@ import Badge from "@/components/ui/Badge";
 import Btn from "@/components/ui/Btn";
 import Card from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
+import ProBadge from "@/components/ui/ProBadge";
+import LaunchBanner from "@/components/ui/LaunchBanner";
+import UpgradeModal from "@/components/ui/UpgradeModal";
 import { createClient } from "@/lib/supabase/client";
 
 const INTER = "'Inter', system-ui, sans-serif";
@@ -57,13 +60,19 @@ export default function DashboardPage() {
   const [dailyProblem, setDailyProblem]             = useState(null);
   const [dailyProblemLoaded, setDailyProblemLoaded] = useState(false);
 
+  // Tier state
+  const [userTier, setUserTier] = useState("free");
+  const [isFoundingMember, setIsFoundingMember] = useState(false);
+  const [isLaunchPhase, setIsLaunchPhase] = useState(true);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
   useEffect(() => {
     async function loadDashboard() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push("/login"); return; }
 
       const [profileRes, solverRes, feynmanRes, mistakesRes, problemsRes] = await Promise.all([
-        supabase.from("profiles").select("name, exam").eq("id", user.id).single(),
+        supabase.from("profiles").select("name, exam, tier, is_founding_member, is_launch_phase").eq("id", user.id).single(),
         supabase.from("solver_sessions").select("id", { count: "exact" }).eq("user_id", user.id),
         supabase.from("feynman_attempts").select("score, gaps").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20),
         supabase.from("mistakes").select("id", { count: "exact" }).eq("user_id", user.id).eq("status", "unresolved"),
@@ -75,6 +84,9 @@ export default function DashboardPage() {
       setFirstName(fullName.split(" ")[0]);
       setExamSubtitle(getExamSubtitle(profile?.exam));
       setSolverCount(solverRes.count ?? 0);
+      setUserTier(profile?.tier || "free");
+      setIsFoundingMember(profile?.is_founding_member || false);
+      setIsLaunchPhase(profile?.is_launch_phase ?? true);
 
       const attempts = feynmanRes.data || [];
       if (attempts.length > 0) {
@@ -140,7 +152,8 @@ export default function DashboardPage() {
               {getGreeting()},{" "}
               <span style={{ color: D_ACCENT }}>{firstName}</span>
             </h1>
-            <p style={{ color: D_MUTED, margin: "5px 0 0", fontSize: 13.5 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5 }}>
+              <ProBadge tier={isFoundingMember ? "founding" : userTier} size="md" />
               {examSubtitle ? (
                 <span
                   style={{
@@ -159,9 +172,9 @@ export default function DashboardPage() {
                   ⏳ {examSubtitle}
                 </span>
               ) : (
-                <span style={{ opacity: 0.5 }}>Loading...</span>
+                <span style={{ opacity: 0.5, fontSize: 13 }}>Loading...</span>
               )}
-            </p>
+            </div>
           </div>
           <Btn
             context="dashboard"
@@ -173,7 +186,14 @@ export default function DashboardPage() {
           </Btn>
         </div>
 
-        {/* ── Stats row ──────────────────────────────────────────────────────── */}
+        {/* ── Launch Banner ─────────────────────────────────────────── */}
+        {isLaunchPhase && userTier === "free" && (
+          <LaunchBanner
+            onUpgradeClick={() => setShowUpgradeModal(true)}
+          />
+        )}
+
+        {/* ── Stats row ──────────────────────────────────────────────── */}
         <div className="dash-stats" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
           {stats.map((s, i) => (
             <div
@@ -347,8 +367,47 @@ export default function DashboardPage() {
               >
                 Weak Areas
               </span>
+              {userTier === "free" && <ProBadge tier="pro" />}
             </div>
 
+            {/* Blur overlay for free users */}
+            {userTier === "free" ? (
+              <div style={{ position: "relative" }}>
+                <div style={{ filter: "blur(6px)", opacity: 0.4, pointerEvents: "none" }}>
+                  {["Work-Energy Theorem", "Gauss's Law", "Electrochemistry"].map((t, i) => (
+                    <div key={i} style={{ marginBottom: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 500, color: D_TEXT }}>{t}</span>
+                        <span style={{ fontSize: 11.5, color: "#f87171", fontWeight: 700 }}>{20 + i * 12}%</span>
+                      </div>
+                      <div style={{ background: D_CARD2, borderRadius: 99, height: 4, overflow: "hidden" }}>
+                        <div style={{ width: `${20 + i * 12}%`, background: "#f87171", borderRadius: 99, height: "100%" }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{
+                  position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center", gap: 8,
+                }}>
+                  <ProBadge tier="pro" size="md" />
+                  <p style={{ fontSize: 12, color: D_MUTED, textAlign: "center", maxWidth: 180 }}>
+                    Upgrade to Pro to see your weak areas and gap analysis
+                  </p>
+                  <Btn
+                    context="dashboard"
+                    variant="outline"
+                    small
+                    onClick={() => setShowUpgradeModal(true)}
+                    style={{ marginTop: 4 }}
+                  >
+                    Unlock Analytics →
+                  </Btn>
+                </div>
+              </div>
+            ) : (
+              /* Original weak areas content for Plus/Pro */
+              <>
             {weakTopics.length === 0 ? (
               <div style={{ textAlign: "center", padding: "16px 0" }}>
                 <Icon name="feynman" color={D_MUTED} size={28} />
@@ -420,6 +479,8 @@ export default function DashboardPage() {
                 </Btn>
               </>
             )}
+              </>
+            )}
           </div>
         </div>
 
@@ -478,6 +539,14 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Upgrade modal */}
+      {showUpgradeModal && (
+        <UpgradeModal
+          feature="default"
+          onClose={() => setShowUpgradeModal(false)}
+        />
+      )}
     </div>
   );
 }

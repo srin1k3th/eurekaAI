@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getExamConfig, DEFAULT_EXAM_KEY } from "@/lib/examConfig";
-import { checkRateLimit, trackUsage } from "@/lib/rateLimit";
+import { checkRateLimit, checkCooldown, trackUsage, getUserTier } from "@/lib/rateLimit";
+import { getTierConfig } from "@/lib/tierConfig";
 
 const SYSTEM_PROMPT = `You are a Socratic tutor for competitive exam preparation. Your ONLY job is to guide students to the answer themselves — you are FORBIDDEN from solving the problem for them.
 
@@ -67,11 +68,67 @@ export async function POST(req) {
       return Response.json({ error: "Please sign in to use the AI tutor." }, { status: 401 });
     }
 
-    // ── Rate limit: 10 per day ────────────────────────────────
-    const rl = await checkRateLimit(supabase, user.id, "solver");
+    // ── Fetch user tier ───────────────────────────────────────
+    const { tier: userTier, isLaunchPhase } = await getUserTier(supabase, user.id);
+    const tierCfg = getTierConfig(userTier, isLaunchPhase);
+
+    // ── Rate limit: tier-specific daily cap ────────────────────
+    const rl = await checkRateLimit(supabase, user.id, "solver", userTier);
     if (!rl.allowed) {
+      const limitDisplay = rl.limit === Infinity ? "unlimited" : rl.limit;
       return Response.json(
-        { error: `Daily limit reached (${rl.used}/${rl.limit} messages). Come back tomorrow!` },
+        {
+          error: `Daily limit reached (${rl.used}/${limitDisplay} sessions). ${userTier === "pro" ? "" : "Upgrade for more →"}`,
+          tier: userTier,
+          upgradeNeeded: userTier !== "pro",
+          used: rl.used,
+          limit: rl.limit,
+        },
+        { status: 429 }
+      );
+    }
+
+    // ── Cooldown check ────────────────────────────────────────
+    if (tierCfg.cooldownSeconds > 0) {
+      const cd = await checkCooldown(supabase, user.id, "solver");
+      if (!cd.allowed) {
+        return Response.json(
+          {
+            error: `Please wait ${cd.waitSeconds}s before your next message.`,
+            cooldown: true,
+            waitSeconds: cd.waitSeconds,
+            tier: userTier,
+          },
+          { status: 429 }
+        );
+      }
+    }
+
+    // ── Image upload gating ───────────────────────────────────
+    const hasImages = messages.some(m => Array.isArray(m.content));
+    if (hasImages && !tierCfg.imageUpload) {
+      return Response.json(
+        {
+          error: "Image uploads require Plus or Pro. Use text to describe your problem, or upgrade →",
+          tier: userTier,
+          upgradeNeeded: true,
+          feature: "imageUpload",
+        },
+        { status: 403 }
+      );
+    }
+
+    // ── Per-session turn limit ─────────────────────────────────
+    // Count user messages (turns) in this session
+    const userTurns = messages.filter(m => m.role === "user").length;
+    if (tierCfg.turnsPerSession !== Infinity && userTurns > tierCfg.turnsPerSession) {
+      return Response.json(
+        {
+          error: `Conversation limit reached (${tierCfg.turnsPerSession} turns). ${userTier === "pro" ? "" : "Upgrade for unlimited conversations →"}`,
+          tier: userTier,
+          upgradeNeeded: userTier !== "pro",
+          turnLimit: true,
+        },
         { status: 429 }
       );
     }
@@ -146,10 +203,9 @@ export async function POST(req) {
       return copy;
     };
 
-    // Detect if any message contains image content
-    const hasImages = messages.some(m => Array.isArray(m.content));
-
+    // hasImages was already checked above for gating
     console.log("[SOLVER] hasImages:", hasImages);
+    console.log("[SOLVER] tier:", userTier, "| turns:", userTurns, "/", tierCfg.turnsPerSession);
 
     // Vision model doesn't support streaming on Groq — fall back to non-streaming
     // but still wrap in ReadableStream so the frontend interface stays identical

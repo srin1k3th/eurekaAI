@@ -6,6 +6,7 @@ import Btn from "@/components/ui/Btn";
 import Icon from "@/components/ui/Icon";
 import Card from "@/components/ui/Card";
 import PdfMiniViewer from "@/components/ui/PdfMiniViewer";
+import UpgradeModal from "@/components/ui/UpgradeModal";
 import { createClient } from "@/lib/supabase/client";
 
 const INTER = "'Inter', system-ui, sans-serif";
@@ -106,6 +107,7 @@ export default function FocusPage() {
   const [showQuizConfig, setShowQuizConfig] = useState(false);
   const [revealedAnswers, setRevealedAnswers] = useState({});
   const [pdfText, setPdfText] = useState("");
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -214,7 +216,22 @@ export default function FocusPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: pdfText, topic: fileName, numQuestions: parseInt(numQuestions) || 4 }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        try {
+          const errData = await res.json();
+          if (errData.upgradeNeeded) {
+            setShowUpgradeModal(true);
+            setGenQLoading(false);
+            return;
+          }
+          if (errData.waitMinutes) {
+            setGenQError(errData.error);
+            setGenQLoading(false);
+            return;
+          }
+        } catch {}
+        throw new Error();
+      }
       const data = await res.json();
       setQuestions(data.questions || []);
       if (!data.questions?.length) setGenQError("Couldn't generate questions. Try a PDF with more text.");

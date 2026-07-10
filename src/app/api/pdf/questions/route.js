@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getExamConfig, DEFAULT_EXAM_KEY } from "@/lib/examConfig";
-import { checkRateLimit, trackUsage } from "@/lib/rateLimit";
+import { checkFocusAiInterval, trackUsage } from "@/lib/rateLimit";
 
 export async function POST(req) {
     try {
@@ -19,11 +19,16 @@ export async function POST(req) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return Response.json({ error: "Sign in to generate questions." }, { status: 401 });
 
-        // ── Rate limit: 10 per day ────────────────────────────────
-        const rl = await checkRateLimit(supabase, user.id, "questions");
+        // ── Rate limit: tier-aware AI quiz interval ──────────────
+        const rl = await checkFocusAiInterval(supabase, user.id);
         if (!rl.allowed) {
             return Response.json(
-                { error: `Daily limit reached (${rl.used}/${rl.limit} generations). Come back tomorrow!` },
+                {
+                    error: `Next AI quiz available in ${rl.waitMinutes} min. ${rl.tier === "pro" ? "" : "Upgrade for unlimited →"}`,
+                    tier: rl.tier,
+                    upgradeNeeded: rl.tier !== "pro",
+                    waitMinutes: rl.waitMinutes,
+                },
                 { status: 429 }
             );
         }
